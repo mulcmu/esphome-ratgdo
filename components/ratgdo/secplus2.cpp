@@ -3,6 +3,7 @@
 
 #include "secplus2.h"
 #include "ratgdo.h"
+#include "ratgdo_uart_check.h"
 
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"

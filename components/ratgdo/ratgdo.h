@@ -114,6 +114,9 @@ namespace ratgdo {
         void set_output_gdo_pin(InternalGPIOPin* pin) { this->output_gdo_pin_ = pin; }
         void set_input_gdo_pin(InternalGPIOPin* pin) { this->input_gdo_pin_ = pin; }
         void set_input_obst_pin(InternalGPIOPin* pin) { this->input_obst_pin_ = pin; }
+#ifdef USE_ESP32
+        void set_esp32_uart_num(uint8_t uart_num) { this->esp32_uart_num_ = uart_num; }
+#endif
 
         // dry contact methods
         void set_dry_contact_open_sensor(esphome::binary_sensor::BinarySensor* dry_contact_open_sensor_);
@@ -254,6 +257,10 @@ namespace ratgdo {
 
         // 4-byte members
         RATGDOStore isr_store_ { };
+
+#ifdef USE_ESP32
+        uint8_t esp32_uart_num_ { 1 }; // UART_NUM_1 by default; change if the ESPHome uart component uses this port
+#endif
 
         // Bool members packed into bitfield
         struct {

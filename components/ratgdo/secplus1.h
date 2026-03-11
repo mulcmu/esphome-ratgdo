@@ -108,6 +108,10 @@ namespace ratgdo {
             void set_discrete_open_pin(InternalGPIOPin* pin) { }
             void set_discrete_close_pin(InternalGPIOPin* pin) { }
 
+#ifdef USE_ESP32
+            void set_uart_port(uart_port_t port) { this->gdo_uart_port_ = port; }
+#endif
+
         protected:
             void wall_panel_emulation(size_t index = 0);
 
