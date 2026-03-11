@@ -1,23 +1,31 @@
 ---
+esphome:
+  min_version: 2026.2.0
 
 external_components:
   - source:
-      # type: local
-      # path: components
       type: git
       url: https://github.com/ratgdo/esphome-ratgdo
+      ref: main
     refresh: 1s
+  # - source:
+  #     type: local
+  #     path: components
+
+safe_mode:
 
 preferences:
   flash_write_interval: 1min
 
 text_sensor:
   - platform: version
+    id: ${id_prefix}_firmware_version
     name: "Firmware Version"
 
 ratgdo:
   id: ${id_prefix}
   output_gdo_pin: ${uart_tx_pin}
+  input_gdo_pin: ${uart_rx_pin}
   input_obst_pin: ${input_obst_pin}
   dry_contact_open_sensor: ${id_prefix}_dry_contact_open
   dry_contact_close_sensor: ${id_prefix}_dry_contact_close
@@ -25,11 +33,16 @@ ratgdo:
   discrete_close_pin: ${discrete_close_pin}
   protocol: drycontact
 
+ota:
+  - platform: esphome
+    id: ${id_prefix}_ratgdo_ota
+  - platform: web_server
+    id: ${id_prefix}_ratgdo_ota_ws
+
 binary_sensor:
   - platform: ratgdo
     type: obstruction
     id: ${id_prefix}_obstruction
-    ratgdo_id: ${id_prefix}
     name: "Obstruction"
     device_class: problem
   - platform: gpio
@@ -62,7 +75,6 @@ number:
     id: ${id_prefix}_opening_duration
     type: opening_duration
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Opening duration"
     unit_of_measurement: "s"
 
@@ -70,7 +82,6 @@ number:
     id: ${id_prefix}_closing_duration
     type: closing_duration
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Closing duration"
     unit_of_measurement: "s"
 
@@ -79,7 +90,6 @@ cover:
     id: ${id_prefix}_garage_door
     device_class: garage
     name: "Door"
-    ratgdo_id: ${id_prefix}
 
 button:
   - platform: restart

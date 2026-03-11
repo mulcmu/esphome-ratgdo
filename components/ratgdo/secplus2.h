@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef PROTOCOL_SECPLUSV2
+
 #include "SoftwareSerial.h" // Using espsoftwareserial https://github.com/plerup/espsoftwareserial
 #include "esphome/core/optional.h"
 
@@ -24,7 +26,7 @@ namespace ratgdo {
         static const uint8_t PACKET_LENGTH = 19;
         typedef uint8_t WirePacket[PACKET_LENGTH];
 
-        ENUM(CommandType, uint16_t,
+        ENUM_SPARSE(CommandType, uint16_t,
             (UNKNOWN, 0x000),
             (GET_STATUS, 0x080),
             (STATUS, 0x081),
@@ -102,10 +104,10 @@ namespace ratgdo {
             const Traits& traits() const { return this->traits_; }
 
             // methods not used by secplus2
-            void set_open_limit(bool state){}
-            void set_close_limit(bool state){}
-            void set_discrete_open_pin(InternalGPIOPin* pin){}
-            void set_discrete_close_pin(InternalGPIOPin* pin){}
+            void set_open_limit(bool state) { }
+            void set_close_limit(bool state) { }
+            void set_discrete_open_pin(InternalGPIOPin* pin) { }
+            void set_discrete_close_pin(InternalGPIOPin* pin) { }
 
         protected:
             void increment_rolling_code_counter(int delta = 1);
@@ -130,31 +132,41 @@ namespace ratgdo {
             void activate_learn();
             void inactivate_learn();
 
-            void print_packet(const char* prefix, const WirePacket& packet) const;
+            void print_packet(const esphome::LogString* prefix, const WirePacket& packet) const;
             optional<Command> decode_packet(const WirePacket& packet) const;
 
             void sync_helper(uint32_t start, uint32_t delay, uint8_t tries);
 
-            LearnState learn_state_ { LearnState::UNKNOWN };
-
-            observable<uint32_t> rolling_code_counter_ { 0 };
+            // 8-byte member first (may require 8-byte alignment on some 32-bit systems)
             uint64_t client_id_ { 0x539 };
 
-            bool transmit_pending_ { false };
-            uint32_t transmit_pending_start_ { 0 };
-            WirePacket tx_packet_;
-            OnceCallbacks<void()> on_command_sent_;
-
-            Traits traits_;
-
-            SoftwareSerial sw_serial_;
-
+            // Pointers (4-byte aligned)
             InternalGPIOPin* tx_pin_;
             InternalGPIOPin* rx_pin_;
-
             RATGDOComponent* ratgdo_;
             Scheduler* scheduler_;
+
+            // 4-byte members
+            uint32_t transmit_pending_start_ { 0 };
+
+            // Larger structures
+            single_observable<uint32_t> rolling_code_counter_ { 0 };
+            OnceCallbacks<void()> on_command_sent_;
+            Traits traits_;
+            SoftwareSerial sw_serial_;
+
+            // 19-byte array
+            WirePacket tx_packet_;
+
+            // Small members at the end
+            LearnState learn_state_ { LearnState::UNKNOWN };
+            struct {
+                uint8_t transmit_pending : 1;
+                uint8_t reserved : 7; // Reserved for future use
+            } flags_ { 0 };
         };
     } // namespace secplus2
 } // namespace ratgdo
 } // namespace esphome
+
+#endif // PROTOCOL_SECPLUSV2

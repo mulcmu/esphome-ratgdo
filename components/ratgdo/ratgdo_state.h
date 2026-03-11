@@ -12,6 +12,7 @@
  ************************************/
 
 #pragma once
+#include "esphome/core/defines.h"
 #include "macros.h"
 #include <cstdint>
 
@@ -25,6 +26,10 @@ namespace ratgdo {
         (STOPPED, 3),
         (OPENING, 4),
         (CLOSING, 5))
+
+    ENUM(DoorActionDelayed, uint8_t,
+        (NO, 0),
+        (YES, 1))
 
     /// Enum for all states a the light can be in.
     ENUM(LightState, uint8_t,
@@ -64,7 +69,7 @@ namespace ratgdo {
         (RELEASED, 1),
         (UNKNOWN, 2))
 
-    ENUM(BatteryState, uint8_t,
+    ENUM_SPARSE(BatteryState, uint8_t,
         (UNKNOWN, 0),
         (CHARGING, 0x6),
         (FULL, 0x8))
@@ -104,6 +109,20 @@ namespace ratgdo {
         (STOP, 3),
         (UNKNOWN, 4))
 
+#ifdef RATGDO_USE_VEHICLE_SENSORS
+    ENUM(VehicleDetectedState, uint8_t,
+        (NO, 0),
+        (YES, 1))
+
+    ENUM(VehicleArrivingState, uint8_t,
+        (NO, 0),
+        (YES, 1))
+
+    ENUM(VehicleLeavingState, uint8_t,
+        (NO, 0),
+        (YES, 1))
+#endif
+
     struct Openings {
         uint16_t count;
         uint8_t flag;
@@ -111,7 +130,7 @@ namespace ratgdo {
 
     struct PairedDeviceCount {
         PairedDevice kind;
-        uint16_t count;
+        uint8_t count;
     };
 
     struct TimeToClose {

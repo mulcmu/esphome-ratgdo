@@ -1,16 +1,25 @@
 ---
+esphome:
+  min_version: 2026.2.0
 
 external_components:
   - source:
       type: git
       url: https://github.com/ratgdo/esphome-ratgdo
+      ref: main
     refresh: 1s
+  # - source:
+  #     type: local
+  #     path: components
+
+safe_mode:
 
 preferences:
   flash_write_interval: 1min
 
 text_sensor:
   - platform: version
+    id: ${id_prefix}_firmware_version
     name: "Firmware Version"
 
 ratgdo:
@@ -33,24 +42,19 @@ api:
       devices_to_wipe: string
     then:
       - lambda: !lambda |-
-          if(devices_to_wipe.compare("all") == 0) {
-            id($id_prefix).clear_paired_devices(ratgdo::PairedDevice::ALL);
-          } else if (devices_to_wipe.compare("remote") == 0) {
-            id($id_prefix).clear_paired_devices(ratgdo::PairedDevice::REMOTE);
-          } else if (devices_to_wipe.compare("keypad") == 0) {
-            id($id_prefix).clear_paired_devices(ratgdo::PairedDevice::KEYPAD);
-          } else if (devices_to_wipe.compare("wall") == 0)  {
-            id($id_prefix).clear_paired_devices(ratgdo::PairedDevice::WALL_CONTROL);
-          } else if (devices_to_wipe.compare("accessory")  == 0) {
-            id($id_prefix).clear_paired_devices(ratgdo::PairedDevice::ACCESSORY);
-          }
+          id($id_prefix).clear_paired_devices(devices_to_wipe);
+
+ota:
+  - platform: esphome
+    id: ${id_prefix}_ratgdo_ota
+  - platform: web_server
+    id: ${id_prefix}_ratgdo_ota_ws
 
 sensor:
   - platform: ratgdo
     id: ${id_prefix}_openings
     type: openings
     entity_category: diagnostic
-    ratgdo_id: ${id_prefix}
     name: "Openings"
     unit_of_measurement: "openings"
     icon: mdi:open-in-app
@@ -58,14 +62,12 @@ sensor:
     id: ${id_prefix}_paired_devices_total
     type: paired_devices_total
     entity_category: diagnostic
-    ratgdo_id: ${id_prefix}
     name: "Paired Devices"
     icon: mdi:remote
 
 lock:
   - platform: ratgdo
     id: ${id_prefix}_lock_remotes
-    ratgdo_id: ${id_prefix}
     name: "Lock remotes"
 
 switch:
@@ -90,7 +92,6 @@ switch:
   - platform: ratgdo
     id: "${id_prefix}_learn"
     type: learn
-    ratgdo_id: ${id_prefix}
     name: "Learn"
     icon: mdi:plus-box
     entity_category: config
@@ -99,13 +100,11 @@ binary_sensor:
   - platform: ratgdo
     type: motion
     id: ${id_prefix}_motion
-    ratgdo_id: ${id_prefix}
     name: "Motion"
     device_class: motion
   - platform: ratgdo
     type: obstruction
     id: ${id_prefix}_obstruction
-    ratgdo_id: ${id_prefix}
     name: "Obstruction"
     device_class: problem
     on_press:
@@ -115,13 +114,11 @@ binary_sensor:
   - platform: ratgdo
     type: button
     id: ${id_prefix}_button
-    ratgdo_id: ${id_prefix}
     name: "Button"
     entity_category: diagnostic
   - platform: ratgdo
     type: motor
     id: ${id_prefix}_motor
-    ratgdo_id: ${id_prefix}
     name: "Motor"
     device_class: running
     entity_category: diagnostic
@@ -138,11 +135,8 @@ binary_sensor:
     filters:
       - delayed_on_off: 500ms
     on_press:
-      - if:
-          condition:
-            binary_sensor.is_off: ${id_prefix}_dry_contact_close
-          then:
-            - cover.open: ${id_prefix}_garage_door
+      then:
+        script.execute: "${id_prefix}_dry_contact_door_control"
   - platform: gpio
     id: "${id_prefix}_dry_contact_close"
     pin:
@@ -156,11 +150,8 @@ binary_sensor:
     filters:
       - delayed_on_off: 500ms
     on_press:
-      - if:
-          condition:
-            binary_sensor.is_off: ${id_prefix}_dry_contact_open
-          then:
-            - cover.close: ${id_prefix}_garage_door
+      then:
+        script.execute: "${id_prefix}_dry_contact_door_control"
   - platform: gpio
     id: "${id_prefix}_dry_contact_light"
     pin:
@@ -176,12 +167,37 @@ binary_sensor:
     on_press:
       - light.toggle: ${id_prefix}_light
 
+script:
+  - id: "${id_prefix}_dry_contact_door_control"
+    then:
+      - delay: 0.1s
+      - if:
+          condition:
+            and:
+              - binary_sensor.is_on: ${id_prefix}_dry_contact_close
+              - binary_sensor.is_on: ${id_prefix}_dry_contact_open
+          then:
+            - cover.toggle: ${id_prefix}_garage_door
+      - if:
+          condition:
+            and:
+              - binary_sensor.is_off: ${id_prefix}_dry_contact_close
+              - binary_sensor.is_on: ${id_prefix}_dry_contact_open
+          then:
+            - cover.open: ${id_prefix}_garage_door
+      - if:
+          condition:
+            and:
+              - binary_sensor.is_on: ${id_prefix}_dry_contact_close
+              - binary_sensor.is_off: ${id_prefix}_dry_contact_open
+          then:
+            - cover.close: ${id_prefix}_garage_door
+
 number:
   - platform: ratgdo
     id: ${id_prefix}_rolling_code_counter
     type: rolling_code_counter
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Rolling code counter"
     mode: box
     unit_of_measurement: "codes"
@@ -190,7 +206,6 @@ number:
     id: ${id_prefix}_opening_duration
     type: opening_duration
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Opening duration"
     unit_of_measurement: "s"
 
@@ -198,7 +213,6 @@ number:
     id: ${id_prefix}_closing_duration
     type: closing_duration
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Closing duration"
     unit_of_measurement: "s"
 
@@ -206,7 +220,6 @@ number:
     id: ${id_prefix}_client_id
     type: client_id
     entity_category: config
-    ratgdo_id: ${id_prefix}
     name: "Client ID"
     mode: box
 
@@ -215,17 +228,15 @@ cover:
     id: ${id_prefix}_garage_door
     device_class: garage
     name: "Door"
-    ratgdo_id: ${id_prefix}
     on_closed:
       - switch.turn_off: ${id_prefix}_status_door
-    on_open:
+    on_opened:
       - switch.turn_on: ${id_prefix}_status_door
 
 light:
   - platform: ratgdo
     id: ${id_prefix}_light
     name: "Light"
-    ratgdo_id: ${id_prefix}
 
 button:
   - platform: restart

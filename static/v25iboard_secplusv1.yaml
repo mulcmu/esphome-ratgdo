@@ -12,13 +12,14 @@ substitutions:
   dry_contact_light_pin: D3
 
 web_server:
+  local: true
 
 esphome:
   name: ${id_prefix}
   friendly_name: ${friendly_name}
   name_add_mac_suffix: true
   project:
-    name: ratgdo.esphome
+    name: ratgdo.v25iboard_secplusv1
     version: "2.5i"
 
 esp8266:
@@ -42,11 +43,12 @@ time:
 api:
   id: api_server
 
-ota:
-
 improv_serial:
 
 wifi:
   ap:
+    ssid: "ratgdo"
+
+captive_portal:
 
 logger:

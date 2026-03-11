@@ -12,13 +12,14 @@ substitutions:
   dry_contact_light_pin: D3
 
 web_server:
+  local: true
 
 esphome:
   name: ${id_prefix}
   friendly_name: ${friendly_name}
   name_add_mac_suffix: true
   project:
-    name: ratgdo.esphome
+    name: ratgdo.v25iboard_secplus2
     version: "2.5i"
 
 esp8266:
@@ -33,6 +34,8 @@ packages:
     url: https://github.com/ratgdo/esphome-ratgdo
     files: [base.yaml]
     refresh: 1s
+  # remote_package: !include
+  #   file: base.yaml
 
 # Sync time with Home Assistant.
 time:
@@ -42,11 +45,12 @@ time:
 api:
   id: api_server
 
-ota:
-
 improv_serial:
 
 wifi:
   ap:
+    ssid: "ratgdo"
+
+captive_portal:
 
 logger:
