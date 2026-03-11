@@ -113,6 +113,10 @@ namespace ratgdo {
             void set_discrete_open_pin(InternalGPIOPin* pin) { }
             void set_discrete_close_pin(InternalGPIOPin* pin) { }
 
+#ifdef USE_ESP32
+            void set_uart_port(uart_port_t port) { this->gdo_uart_port_ = port; }
+#endif
+
         protected:
             void increment_rolling_code_counter(int delta = 1);
             void set_rolling_code_counter(uint32_t counter);

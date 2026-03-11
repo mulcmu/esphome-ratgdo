@@ -29,6 +29,10 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include "driver/uart.h"
+#endif
+
 namespace esphome {
 namespace ratgdo {
 
@@ -175,6 +179,17 @@ namespace ratgdo {
 #endif
 #ifdef PROTOCOL_DRYCONTACT
         this->protocol_ = new dry_contact::DryContact();
+#endif
+
+#ifdef USE_ESP32
+        // Apply the configured UART port to the protocol so that it does not
+        // conflict with any ESPHome 'uart:' component that may also be present.
+#ifdef PROTOCOL_SECPLUSV2
+        static_cast<secplus2::Secplus2*>(this->protocol_)->set_uart_port((uart_port_t)this->esp32_uart_num_);
+#endif
+#ifdef PROTOCOL_SECPLUSV1
+        static_cast<secplus1::Secplus1*>(this->protocol_)->set_uart_port((uart_port_t)this->esp32_uart_num_);
+#endif
 #endif
     }
 
