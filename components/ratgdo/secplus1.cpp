@@ -9,6 +9,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/scheduler.h"
 
+#ifdef USE_ESP32
+#include "driver/gpio.h"
+#endif
+
 namespace esphome {
 namespace ratgdo {
     namespace secplus1 {
@@ -22,7 +26,27 @@ namespace ratgdo {
             this->tx_pin_ = tx_pin;
             this->rx_pin_ = rx_pin;
 
+#ifdef USE_ESP32
+            this->tx_gpio_num_ = tx_pin->get_pin();
+            this->rx_gpio_num_ = rx_pin->get_pin();
+
+            uart_config_t uart_config = {};
+            uart_config.baud_rate = 1200;
+            uart_config.data_bits = UART_DATA_8_BITS;
+            uart_config.parity    = UART_PARITY_EVEN;
+            uart_config.stop_bits = UART_STOP_BITS_1;
+            uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+
+            uart_driver_install(this->gdo_uart_port_, 512, 0, 0, NULL, 0);
+            uart_param_config(this->gdo_uart_port_, &uart_config);
+            uart_set_pin(this->gdo_uart_port_, this->tx_gpio_num_, this->rx_gpio_num_, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+            // The ratgdo hardware uses a transistor to invert the signal level,
+            // so we configure hardware inversion to match.
+            uart_set_line_inverse(this->gdo_uart_port_, UART_SIGNAL_TXD_INV | UART_SIGNAL_RXD_INV);
+            uart_flush_input(this->gdo_uart_port_);
+#else
             this->sw_serial_.begin(1200, SWSERIAL_8E1, rx_pin->get_pin(), tx_pin->get_pin(), true);
+#endif
 
             this->traits_.set_features(HAS_DOOR_STATUS | HAS_LIGHT_TOGGLE | HAS_LOCK_TOGGLE);
         }
@@ -236,12 +260,25 @@ namespace ratgdo {
             static RxPacket rx_packet;
 
             if (!reading_msg) {
+#ifdef USE_ESP32
+                size_t available_bytes = 0;
+                uart_get_buffered_data_len(this->gdo_uart_port_, &available_bytes);
+                while (available_bytes > 0) {
+                    uint8_t ser_byte = 0;
+                    if (uart_read_bytes(this->gdo_uart_port_, &ser_byte, 1, 0) <= 0) break;
+                    available_bytes--;
+#else
                 while (this->sw_serial_.available()) {
                     uint8_t ser_byte = this->sw_serial_.read();
+#endif
                     this->last_rx_ = millis();
 
                     if (ser_byte < 0x30 || ser_byte > 0x3A) {
+#ifdef USE_ESP32
+                        ESP_LOG2(TAG, "[%d] Ignoring byte [%02X], baud: 1200", millis(), ser_byte);
+#else
                         ESP_LOG2(TAG, "[%d] Ignoring byte [%02X], baud: %d", millis(), ser_byte, this->sw_serial_.baudRate());
+#endif
                         byte_count = 0;
                         continue;
                     }
@@ -261,8 +298,17 @@ namespace ratgdo {
                 }
             }
             if (reading_msg) {
+#ifdef USE_ESP32
+                size_t available_bytes = 0;
+                uart_get_buffered_data_len(this->gdo_uart_port_, &available_bytes);
+                while (available_bytes > 0) {
+                    uint8_t ser_byte = 0;
+                    if (uart_read_bytes(this->gdo_uart_port_, &ser_byte, 1, 0) <= 0) break;
+                    available_bytes--;
+#else
                 while (this->sw_serial_.available()) {
                     uint8_t ser_byte = this->sw_serial_.read();
+#endif
                     this->last_rx_ = millis();
                     rx_packet[byte_count++] = ser_byte;
                     ESP_LOG2(TAG, "[%d] Received byte: [%02X]", millis(), ser_byte);
@@ -455,6 +501,14 @@ namespace ratgdo {
 
         void Secplus1::transmit_byte(uint32_t value)
         {
+#ifdef USE_ESP32
+            // Hardware UART handles TX independently; no interrupt management needed.
+            uint8_t byte = static_cast<uint8_t>(value);
+            uart_write_bytes(this->gdo_uart_port_, (const char*)&byte, 1);
+            // Wait for hardware TX to complete (at 1200 baud ~8.3 ms/byte)
+            uart_wait_tx_done(this->gdo_uart_port_, pdMS_TO_TICKS(100));
+            this->last_tx_ = millis();
+#else
             bool enable_rx = (value == 0x38) || (value == 0x39) || (value == 0x3A);
             if (!enable_rx) {
                 this->sw_serial_.enableIntTx(false);
@@ -464,6 +518,7 @@ namespace ratgdo {
             if (!enable_rx) {
                 this->sw_serial_.enableIntTx(true);
             }
+#endif
             ESP_LOGD(TAG, "[%d] Sent byte: [%02X]", millis(), value);
         }
 

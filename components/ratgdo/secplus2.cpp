@@ -12,6 +12,10 @@ extern "C" {
 #include "secplus.h"
 }
 
+#ifdef USE_ESP32
+#include "driver/gpio.h"
+#endif
+
 namespace esphome {
 namespace ratgdo {
     namespace secplus2 {
@@ -35,9 +39,29 @@ namespace ratgdo {
             this->tx_pin_ = tx_pin;
             this->rx_pin_ = rx_pin;
 
+#ifdef USE_ESP32
+            this->tx_gpio_num_ = tx_pin->get_pin();
+            this->rx_gpio_num_ = rx_pin->get_pin();
+
+            uart_config_t uart_config = {};
+            uart_config.baud_rate = 9600;
+            uart_config.data_bits = UART_DATA_8_BITS;
+            uart_config.parity    = UART_PARITY_DISABLE;
+            uart_config.stop_bits = UART_STOP_BITS_1;
+            uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+
+            uart_driver_install(this->gdo_uart_port_, 512, 0, 0, NULL, 0);
+            uart_param_config(this->gdo_uart_port_, &uart_config);
+            uart_set_pin(this->gdo_uart_port_, this->tx_gpio_num_, this->rx_gpio_num_, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+            // The ratgdo hardware uses a transistor to invert the signal level,
+            // so we configure hardware inversion to match.
+            uart_set_line_inverse(this->gdo_uart_port_, UART_SIGNAL_TXD_INV | UART_SIGNAL_RXD_INV);
+            uart_flush_input(this->gdo_uart_port_);
+#else
             this->sw_serial_.begin(9600, SWSERIAL_8N1, rx_pin->get_pin(), tx_pin->get_pin(), true);
             this->sw_serial_.enableIntTx(false);
             this->sw_serial_.enableAutoBaud(true);
+#endif
 
             this->traits_.set_features(Traits::all());
         }
@@ -264,12 +288,25 @@ namespace ratgdo {
             static uint32_t last_read = 0;
 
             if (!reading_msg) {
+#ifdef USE_ESP32
+                size_t available_bytes = 0;
+                uart_get_buffered_data_len(this->gdo_uart_port_, &available_bytes);
+                while (available_bytes > 0) {
+                    uint8_t ser_byte = 0;
+                    if (uart_read_bytes(this->gdo_uart_port_, &ser_byte, 1, 0) <= 0) break;
+                    available_bytes--;
+#else
                 while (this->sw_serial_.available()) {
                     uint8_t ser_byte = this->sw_serial_.read();
+#endif
                     last_read = millis();
 
                     if (ser_byte != 0x55 && ser_byte != 0x01 && ser_byte != 0x00) {
+#ifdef USE_ESP32
+                        ESP_LOG2(TAG, "Ignoring byte (%d): %02X, baud: 9600", byte_count, ser_byte);
+#else
                         ESP_LOG2(TAG, "Ignoring byte (%d): %02X, baud: %d", byte_count, ser_byte, this->sw_serial_.baudRate());
+#endif
                         byte_count = 0;
                         continue;
                     }
@@ -278,7 +315,11 @@ namespace ratgdo {
 
                     // if we are at the start of a message, capture the next 16 bytes
                     if (msg_start == 0x550100) {
+#ifdef USE_ESP32
+                        ESP_LOG1(TAG, "Baud: 9600");
+#else
                         ESP_LOG1(TAG, "Baud: %d", this->sw_serial_.baudRate());
+#endif
                         rx_packet[0] = 0x55;
                         rx_packet[1] = 0x01;
                         rx_packet[2] = 0x00;
@@ -289,12 +330,20 @@ namespace ratgdo {
                 }
             }
             if (reading_msg) {
+#ifdef USE_ESP32
+                size_t available_bytes = 0;
+                uart_get_buffered_data_len(this->gdo_uart_port_, &available_bytes);
+                while (available_bytes > 0) {
+                    uint8_t ser_byte = 0;
+                    if (uart_read_bytes(this->gdo_uart_port_, &ser_byte, 1, 0) <= 0) break;
+                    available_bytes--;
+#else
                 while (this->sw_serial_.available()) {
                     uint8_t ser_byte = this->sw_serial_.read();
+#endif
                     last_read = millis();
                     rx_packet[byte_count] = ser_byte;
                     byte_count++;
-                    // ESP_LOG2(TAG, "Received byte (%d): %02X, baud: %d", byte_count, ser_byte, this->sw_serial_.baudRate());
 
                     if (byte_count == PACKET_LENGTH) {
                         reading_msg = false;
@@ -480,12 +529,29 @@ namespace ratgdo {
             // indicate the start of a frame by pulling the 12V line low for at leat 1 byte followed by
             // one STOP bit, which indicates to the receiving end that the start of the message follows
             // The output pin is controlling a transistor, so the logic is inverted
+#ifdef USE_ESP32
+            // On ESP32, the TX pin is driven by the hardware UART peripheral via the GPIO matrix.
+            // To send the preamble we must temporarily reclaim the pin as plain GPIO output,
+            // then hand it back to the UART driver before writing the packet bytes.
+            const gpio_num_t tx_gpio = (gpio_num_t)this->tx_gpio_num_;
+            gpio_reset_pin(tx_gpio);
+            gpio_set_direction(tx_gpio, GPIO_MODE_OUTPUT);
+            gpio_set_level(tx_gpio, 0); // ensure idle state first
+            gpio_set_level(tx_gpio, 1); // pull the 12V line low (inverted)
+            delayMicroseconds(1300);
+            gpio_set_level(tx_gpio, 0); // line high for at least 1 bit
+            delayMicroseconds(130);
+            // Reconnect TX pin to UART peripheral via the GPIO matrix
+            uart_set_pin(this->gdo_uart_port_, this->tx_gpio_num_, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+            uart_write_bytes(this->gdo_uart_port_, (const char*)this->tx_packet_, PACKET_LENGTH);
+            uart_wait_tx_done(this->gdo_uart_port_, pdMS_TO_TICKS(100));
+#else
             this->tx_pin_->digital_write(true); // pull the line low for at least 1 byte
             delayMicroseconds(1300);
             this->tx_pin_->digital_write(false); // line high for at least 1 bit
             delayMicroseconds(130);
-
             this->sw_serial_.write(this->tx_packet_, PACKET_LENGTH);
+#endif
 
             this->flags_.transmit_pending = false;
             this->transmit_pending_start_ = 0;
