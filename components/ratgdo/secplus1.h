@@ -4,7 +4,11 @@
 
 #include <queue>
 
+#ifdef USE_ESP32
+#include "driver/uart.h"
+#else
 #include "SoftwareSerial.h" // Using espsoftwareserial https://github.com/plerup/espsoftwareserial
+#endif
 #include "esphome/core/optional.h"
 
 #include "callbacks.h"
@@ -104,6 +108,10 @@ namespace ratgdo {
             void set_discrete_open_pin(InternalGPIOPin* pin) { }
             void set_discrete_close_pin(InternalGPIOPin* pin) { }
 
+#ifdef USE_ESP32
+            void set_uart_port(uart_port_t port) { this->gdo_uart_port_ = port; }
+#endif
+
         protected:
             void wall_panel_emulation(size_t index = 0);
 
@@ -140,7 +148,13 @@ namespace ratgdo {
 
             // Larger structures
             std::priority_queue<TxCommand, std::vector<TxCommand>, FirstToSend> pending_tx_;
+#ifdef USE_ESP32
+            uart_port_t gdo_uart_port_ { UART_NUM_1 };
+            int tx_gpio_num_ { -1 };
+            int rx_gpio_num_ { -1 };
+#else
             SoftwareSerial sw_serial_;
+#endif
             OnceCallbacks<void(DoorState)> on_door_state_;
             Traits traits_;
 
