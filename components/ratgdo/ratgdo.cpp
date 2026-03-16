@@ -20,9 +20,15 @@
 #endif
 #ifdef PROTOCOL_SECPLUSV1
 #include "secplus1.h"
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT)
+#include "secplus1_esp32.h"
+#endif
 #endif
 #ifdef PROTOCOL_SECPLUSV2
 #include "secplus2.h"
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT)
+#include "secplus2_esp32.h"
+#endif
 #endif
 
 #include "esphome/core/application.h"
@@ -168,10 +174,22 @@ namespace ratgdo {
     void RATGDOComponent::init_protocol()
     {
 #ifdef PROTOCOL_SECPLUSV2
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT)
+        auto* sp2_esp32 = new secplus2::Secplus2Esp32();
+        sp2_esp32->set_uart_parent(this->uart_parent_);
+        this->protocol_ = sp2_esp32;
+#else
         this->protocol_ = new secplus2::Secplus2();
 #endif
+#endif
 #ifdef PROTOCOL_SECPLUSV1
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT)
+        auto* sp1_esp32 = new secplus1::Secplus1Esp32();
+        sp1_esp32->set_uart_parent(this->uart_parent_);
+        this->protocol_ = sp1_esp32;
+#else
         this->protocol_ = new secplus1::Secplus1();
+#endif
 #endif
 #ifdef PROTOCOL_DRYCONTACT
         this->protocol_ = new dry_contact::DryContact();

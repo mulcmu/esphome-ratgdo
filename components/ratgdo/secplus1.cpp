@@ -22,7 +22,9 @@ namespace ratgdo {
             this->tx_pin_ = tx_pin;
             this->rx_pin_ = rx_pin;
 
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT))
             this->sw_serial_.begin(1200, SWSERIAL_8E1, rx_pin->get_pin(), tx_pin->get_pin(), true);
+#endif
 
             this->traits_.set_features(HAS_DOOR_STATUS | HAS_LIGHT_TOGGLE | HAS_LOCK_TOGGLE);
         }
@@ -230,6 +232,9 @@ namespace ratgdo {
 
         optional<RxCommand> Secplus1::read_command()
         {
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT)
+            return { };
+#else
             static bool reading_msg = false;
             static uint32_t msg_start = 0;
             static uint16_t byte_count = 0;
@@ -286,6 +291,7 @@ namespace ratgdo {
             }
 
             return { };
+#endif
         }
 
         void Secplus1::print_rx_packet(const RxPacket& packet) const
@@ -455,6 +461,9 @@ namespace ratgdo {
 
         void Secplus1::transmit_byte(uint32_t value)
         {
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT)
+            this->last_tx_ = millis();
+#else
             bool enable_rx = (value == 0x38) || (value == 0x39) || (value == 0x3A);
             if (!enable_rx) {
                 this->sw_serial_.enableIntTx(false);
@@ -465,6 +474,7 @@ namespace ratgdo {
                 this->sw_serial_.enableIntTx(true);
             }
             ESP_LOGD(TAG, "[%d] Sent byte: [%02X]", millis(), value);
+#endif
         }
 
     } // namespace secplus1

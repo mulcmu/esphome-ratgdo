@@ -4,7 +4,9 @@
 
 #include <queue>
 
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT))
 #include "SoftwareSerial.h" // Using espsoftwareserial https://github.com/plerup/espsoftwareserial
+#endif
 #include "esphome/core/optional.h"
 
 #include "callbacks.h"
@@ -32,7 +34,11 @@ namespace ratgdo {
         static const TxPacket toggle_light = { 0x32, 0x33 };
         static const TxPacket toggle_lock = { 0x34, 0x35 };
 
+    #ifdef USE_ESP8266
         static const uint8_t secplus1_states[] PROGMEM = { 0x35, 0x35, 0x35, 0x35, 0x33, 0x33, 0x53, 0x53, 0x38, 0x3A, 0x3A, 0x3A, 0x39, 0x38, 0x3A, 0x38, 0x3A, 0x39, 0x3A };
+    #else
+        static const uint8_t secplus1_states[] = { 0x35, 0x35, 0x35, 0x35, 0x33, 0x33, 0x53, 0x53, 0x38, 0x3A, 0x3A, 0x3A, 0x39, 0x38, 0x3A, 0x38, 0x3A, 0x39, 0x3A };
+    #endif
 
         ENUM_SPARSE(CommandType, uint8_t,
             (TOGGLE_DOOR_PRESS, 0x30),
@@ -107,7 +113,7 @@ namespace ratgdo {
         protected:
             void wall_panel_emulation(size_t index = 0);
 
-            optional<RxCommand> read_command();
+            virtual optional<RxCommand> read_command();
             void handle_command(const RxCommand& cmd);
 
             void print_rx_packet(const RxPacket& packet) const;
@@ -119,7 +125,7 @@ namespace ratgdo {
             optional<CommandType> pop_pending_tx();
             bool do_transmit_if_pending();
             void enqueue_command_pair(CommandType cmd);
-            void transmit_byte(uint32_t value);
+            virtual void transmit_byte(uint32_t value);
 
             void toggle_light();
             void toggle_lock();
@@ -140,7 +146,9 @@ namespace ratgdo {
 
             // Larger structures
             std::priority_queue<TxCommand, std::vector<TxCommand>, FirstToSend> pending_tx_;
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV1_ESP32_RMT))
             SoftwareSerial sw_serial_;
+#endif
             OnceCallbacks<void(DoorState)> on_door_state_;
             Traits traits_;
 

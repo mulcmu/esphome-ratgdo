@@ -2,7 +2,9 @@
 
 #ifdef PROTOCOL_SECPLUSV2
 
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT))
 #include "SoftwareSerial.h" // Using espsoftwareserial https://github.com/plerup/espsoftwareserial
+#endif
 #include "esphome/core/optional.h"
 
 #include "callbacks.h"
@@ -114,13 +116,13 @@ namespace ratgdo {
             void set_rolling_code_counter(uint32_t counter);
             void set_client_id(uint64_t client_id);
 
-            optional<Command> read_command();
+            virtual optional<Command> read_command();
             void handle_command(const Command& cmd);
 
             void send_command(Command cmd, IncrementRollingCode increment = IncrementRollingCode::YES);
             void send_command(Command cmd, IncrementRollingCode increment, std::function<void()>&& on_sent);
             void encode_packet(Command cmd, WirePacket& packet);
-            bool transmit_packet();
+            virtual bool transmit_packet();
 
             void door_command(DoorAction action);
 
@@ -153,7 +155,9 @@ namespace ratgdo {
             single_observable<uint32_t> rolling_code_counter_ { 0 };
             OnceCallbacks<void()> on_command_sent_;
             Traits traits_;
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT))
             SoftwareSerial sw_serial_;
+#endif
 
             // 19-byte array
             WirePacket tx_packet_;

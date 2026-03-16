@@ -14,6 +14,9 @@
 #pragma once
 
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#ifdef USE_ESP32
+#include "esphome/components/uart/uart.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -114,6 +117,12 @@ namespace ratgdo {
         void set_output_gdo_pin(InternalGPIOPin* pin) { this->output_gdo_pin_ = pin; }
         void set_input_gdo_pin(InternalGPIOPin* pin) { this->input_gdo_pin_ = pin; }
         void set_input_obst_pin(InternalGPIOPin* pin) { this->input_obst_pin_ = pin; }
+
+#ifdef USE_ESP32
+        // Enables hardware UART RX + RMT TX on ESP32 when uart_id is configured in YAML.
+        // Must be called before init_protocol().
+        void set_uart_parent(uart::UARTComponent* uart_parent) { this->uart_parent_ = uart_parent; }
+#endif
 
         // dry contact methods
         void set_dry_contact_open_sensor(esphome::binary_sensor::BinarySensor* dry_contact_open_sensor_);
@@ -251,6 +260,9 @@ namespace ratgdo {
         InternalGPIOPin* input_obst_pin_;
         esphome::binary_sensor::BinarySensor* dry_contact_open_sensor_;
         esphome::binary_sensor::BinarySensor* dry_contact_close_sensor_;
+#ifdef USE_ESP32
+        uart::UARTComponent* uart_parent_ { nullptr };
+#endif
 
         // 4-byte members
         RATGDOStore isr_store_ { };

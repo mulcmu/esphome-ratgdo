@@ -1,0 +1,44 @@
+esphome:
+  name: buildcheck-esp32-v1
+  min_version: 2026.2.0
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/mulcmu/esphome-ratgdo.git
+      ref: esp32-hw-rx-rmt-tx
+      path: components
+    components: [ratgdo]
+
+logger:
+
+ratgdo:
+  id: ratgdo_component
+  protocol: secplusv1
+  input_gdo_pin:
+    number: GPIO21
+    allow_other_uses: true
+  output_gdo_pin: GPIO17
+  input_obst_pin: GPIO4
+  uart_id: gdo_uart
+
+uart:
+  id: gdo_uart
+  baud_rate: 1200
+  rx_pin:
+    number: GPIO21
+    allow_other_uses: true
+  stop_bits: 1
+  data_bits: 8
+  parity: EVEN
+
+binary_sensor:
+  - platform: template
+    name: "Buildcheck Template"
+    lambda: |-
+      return false;

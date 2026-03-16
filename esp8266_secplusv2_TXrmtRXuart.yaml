@@ -1,0 +1,30 @@
+esphome:
+  name: buildcheck-esp8266-v2
+  min_version: 2026.2.0
+
+esp8266:
+  board: d1_mini
+  restore_from_flash: true
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/mulcmu/esphome-ratgdo.git
+      ref: esp32-hw-rx-rmt-tx
+      path: components
+    components: [ratgdo]
+
+logger:
+
+ratgdo:
+  id: ratgdo_component
+  protocol: secplusv2
+  input_gdo_pin: D2
+  output_gdo_pin: D1
+  input_obst_pin: D7
+
+binary_sensor:
+  - platform: template
+    name: "Buildcheck Template"
+    lambda: |-
+      return false;

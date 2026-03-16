@@ -27,7 +27,7 @@ esphome:
 esp32:
   board: esp32dev
   framework:
-    type: arduino
+    type: esp-idf
 
 dashboard_import:
   package_import_url: github://ratgdo/esphome-ratgdo/v32disco.yaml@main
@@ -63,6 +63,23 @@ captive_portal:
 logger:
   logs:
     sensor: NONE
+
+# Hardware UART for GDO RX — 9600 baud 8N1.
+# The RMT peripheral handles TX via output_gdo_pin (GPIO17).
+# input_gdo_pin (GPIO21) is still required for bus-idle collision detection.
+uart:
+  - id: gdo_uart
+    baud_rate: 9600
+    rx_pin:
+      number: ${uart_rx_pin}
+      allow_other_uses: true
+    stop_bits: 1
+    data_bits: 8
+    parity: NONE
+
+ratgdo:
+  id: ${id_prefix}
+  uart_id: gdo_uart
 
 binary_sensor:
   - platform: ratgdo
@@ -157,3 +174,4 @@ sensor:
     #     min_value: 0
     #     max_value: 100
     # unit_of_measurement: "%"
+

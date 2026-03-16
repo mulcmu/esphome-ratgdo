@@ -10,6 +10,9 @@
 
 extern "C" {
 #include "secplus.h"
+#if defined(USE_ESP32) && defined(USE_ESP_IDF)
+#include "secplus.c"
+#endif
 }
 
 namespace esphome {
@@ -35,9 +38,11 @@ namespace ratgdo {
             this->tx_pin_ = tx_pin;
             this->rx_pin_ = rx_pin;
 
+#if !(defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT))
             this->sw_serial_.begin(9600, SWSERIAL_8N1, rx_pin->get_pin(), tx_pin->get_pin(), true);
             this->sw_serial_.enableIntTx(false);
             this->sw_serial_.enableAutoBaud(true);
+#endif
 
             this->traits_.set_features(Traits::all());
         }
@@ -257,6 +262,9 @@ namespace ratgdo {
 
         optional<Command> Secplus2::read_command()
         {
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT)
+            return { };
+#else
             static bool reading_msg = false;
             static uint32_t msg_start = 0;
             static uint16_t byte_count = 0;
@@ -315,6 +323,7 @@ namespace ratgdo {
             }
 
             return { };
+#endif
         }
 
         void Secplus2::print_packet(const esphome::LogString* prefix, const WirePacket& packet) const
@@ -459,6 +468,9 @@ namespace ratgdo {
 
         bool Secplus2::transmit_packet()
         {
+#if defined(USE_ESP32) && defined(PROTOCOL_SECPLUSV2_ESP32_RMT)
+            return false;
+#else
             auto now = micros();
 
             while (micros() - now < 1300) {
@@ -491,6 +503,7 @@ namespace ratgdo {
             this->transmit_pending_start_ = 0;
             this->on_command_sent_.trigger();
             return true;
+#endif
         }
 
         void Secplus2::increment_rolling_code_counter(int delta)

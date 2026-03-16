@@ -2,8 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 import voluptuous as vol
 from esphome import automation, pins
-from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.components import binary_sensor, esp32, esp32_rmt, uart
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_UART_ID
+from esphome.core import CORE
 
 DEPENDENCIES = ["preferences"]
 MULTI_CONF = True
@@ -40,6 +41,10 @@ PROTOCOL_SECPLUSV2 = "secplusv2"
 PROTOCOL_DRYCONTACT = "drycontact"
 SUPPORTED_PROTOCOLS = [PROTOCOL_SECPLUSV1, PROTOCOL_SECPLUSV2, PROTOCOL_DRYCONTACT]
 
+SECPLUS_REPOSITORY = (
+    "https://github.com/ratgdo/secplus#f98c3220356c27717a25102c0b35815ebbd26ccc"
+)
+
 CONF_DRY_CONTACT_OPEN_SENSOR = "dry_contact_open_sensor"
 CONF_DRY_CONTACT_CLOSE_SENSOR = "dry_contact_close_sensor"
 CONF_DRY_CONTACT_SENSOR_GROUP = "dry_contact_sensor_group"
@@ -60,6 +65,8 @@ def validate_protocol(config):
         raise cv.Invalid(
             "dry_contact_close_sensor and dry_contact_open_sensor are only valid when using protocol drycontact"
         )
+    if config.get(CONF_UART_ID, None) and config.get(CONF_PROTOCOL, None) == PROTOCOL_DRYCONTACT:
+        raise cv.Invalid("uart_id is only valid when using secplusv1 or secplusv2")
     #    if config.get(CONF_PROTOCOL, None) == PROTOCOL_DRYCONTACT and CONF_DRY_CONTACT_OPEN_SENSOR not in config:
     #        raise cv.Invalid("dry_contact_open_sensor is required when using protocol drycontact")
     return config
@@ -88,6 +95,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROTOCOL, default=PROTOCOL_SECPLUSV2): cv.All(
                 vol.In(SUPPORTED_PROTOCOLS)
             ),
+            # uart_id enables hardware UART RX + RMT TX for secplus protocols on ESP32.
+            # The referenced uart component must match the selected protocol framing.
+            cv.Optional(CONF_UART_ID): cv.All(cv.only_on_esp32, cv.use_id(uart.UARTComponent)),
             # cv.Inclusive(CONF_DRY_CONTACT_OPEN_SENSOR,CONF_DRY_CONTACT_SENSOR_GROUP): cv.use_id(binary_sensor.BinarySensor),
             # cv.Inclusive(CONF_DRY_CONTACT_CLOSE_SENSOR,CONF_DRY_CONTACT_SENSOR_GROUP): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_DRY_CONTACT_OPEN_SENSOR): cv.use_id(
@@ -99,6 +109,9 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_protocol,
+    # uart_id selects the ESP32 hardware UART RX + RMT TX transport path,
+    # so reject it on variants that do not expose RMT hardware.
+    esp32_rmt.validate_rmt_not_supported([CONF_UART_ID]),
 )
 
 RATGDO_CLIENT_SCHMEA = cv.Schema(
@@ -142,7 +155,7 @@ async def to_code(config):
 
     cg.add_library(
         name="secplus",
-        repository="https://github.com/ratgdo/secplus#f98c3220356c27717a25102c0b35815ebbd26ccc",
+        repository=SECPLUS_REPOSITORY,
         version=None,
     )
     cg.add_library(
@@ -153,10 +166,29 @@ async def to_code(config):
 
     if config[CONF_PROTOCOL] == PROTOCOL_SECPLUSV1:
         cg.add_build_flag("-DPROTOCOL_SECPLUSV1")
+        if config.get(CONF_UART_ID):
+            # Hardware UART RX + RMT TX path for ESP32
+            uart_parent = await cg.get_variable(config[CONF_UART_ID])
+            cg.add(var.set_uart_parent(uart_parent))
+            esp32.include_builtin_idf_component("esp_driver_rmt")
+            cg.add_build_flag("-DPROTOCOL_SECPLUSV1_ESP32_RMT")
     elif config[CONF_PROTOCOL] == PROTOCOL_SECPLUSV2:
         cg.add_build_flag("-DPROTOCOL_SECPLUSV2")
+        if config.get(CONF_UART_ID):
+            # Hardware UART RX + RMT TX path for ESP32
+            uart_parent = await cg.get_variable(config[CONF_UART_ID])
+            cg.add(var.set_uart_parent(uart_parent))
+            esp32.include_builtin_idf_component("esp_driver_rmt")
+            cg.add_build_flag("-DPROTOCOL_SECPLUSV2_ESP32_RMT")
     elif config[CONF_PROTOCOL] == PROTOCOL_DRYCONTACT:
         cg.add_build_flag("-DPROTOCOL_DRYCONTACT")
+
+    # In ESP-IDF builds, PlatformIO lib_deps are not added to this component's
+    # include path automatically. Point includes at the pinned secplus library
+    # checkout so secplus2 can include secplus.h.
+    if CORE.is_esp32 and not CORE.using_arduino and config[CONF_PROTOCOL] == PROTOCOL_SECPLUSV2:
+        cg.add_build_flag("-I$PROJECT_LIBDEPS_DIR/$PIOENV/secplus/src")
+
     cg.add(var.init_protocol())
 
     if config.get(CONF_DISCRETE_OPEN_PIN):

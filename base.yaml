@@ -24,7 +24,10 @@ text_sensor:
 
 ratgdo:
   id: ${id_prefix}
-  input_gdo_pin: ${uart_rx_pin}
+  # Shared with uart.rx_pin when using UART RX + RMT TX mode on ESP32.
+  input_gdo_pin:
+    number: ${uart_rx_pin}
+    allow_other_uses: true
   output_gdo_pin: ${uart_tx_pin}
   input_obst_pin: ${input_obst_pin}
   on_sync_failed:

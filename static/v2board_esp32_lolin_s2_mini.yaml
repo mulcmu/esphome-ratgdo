@@ -24,7 +24,7 @@ esphome:
 esp32:
   variant: esp32s2
   framework:
-    type: arduino
+    type: esp-idf
 
 dashboard_import:
   package_import_url: github://ratgdo/esphome-ratgdo/v2board_esp32_lolin_s2_mini.yaml@main
@@ -49,3 +49,21 @@ wifi:
   ap:
 
 logger:
+
+# Hardware UART for GDO RX — 9600 baud 8N1.
+# The RMT peripheral handles TX via output_gdo_pin (pin 16).
+# input_gdo_pin (pin 33) is still required for bus-idle collision detection.
+uart:
+  - id: gdo_uart
+    baud_rate: 9600
+    rx_pin:
+      number: ${uart_rx_pin}
+      allow_other_uses: true
+    stop_bits: 1
+    data_bits: 8
+    parity: NONE
+
+ratgdo:
+  id: ${id_prefix}
+  uart_id: gdo_uart
+
